@@ -1,71 +1,100 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>使用自己的图标替换marker图标</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" />
-    <script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <title>gm</title>
+    <!--加载google map api-->
+    <script type="text/javascript" src="http://maps.googleapis.com/maps/api/js?v=3.exp&key=AIzaSyAJbtNjb7G4Tq0VdhhUtR1_Uabn7SaQEvw &sensor=true"></script>
+    
 </head>
-
 <body>
-    <div id="map" style="width:500px;height:500px;"></div>
+    <div id="map-canvas" style="width:100%; height:600px;"></div>
+
+    <script src="js/d3.v4.js"></script>
+    <script src="js/queue.js"></script>
     <script type="text/javascript">
-     $(function(){
-        var map = L.map('map', {
-            center: [40, 100],
-            zoom: 4
-        });
-        // 影像
-        L.tileLayer("http://t{s}.tianditu.cn/img_w/wmts?service=wmts&request=GetTile&version=1.0.0&LAYER=img&tileMatrixSet=w&TileMatrix={z}&TileRow={y}&TileCol={x}&style=default&format=tiles", {
-            subdomains: ["0", "1", "2", "3", "4", "5", "6", "7"]
-        }).addTo(map);
+        //设置基本参数
+        var map;
+        function initialize() {
+            var mapOptions = {
+                zoom: 8,
+                center: new google.maps.LatLng(53.139206, 8.196213)
+            };
+            map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
 
-        // 地名标注
-        L.tileLayer("http://t{s}.tianditu.cn/cia_w/wmts?service=wmts&request=GetTile&version=1.0.0&LAYER=cia&tileMatrixSet=w&TileMatrix={z}&TileRow={y}&TileCol={x}&style=default&format=tiles", {
-            subdomains: ["0", "1", "2", "3", "4", "5", "6", "7"]
-        }).addTo(map);
-
-        // 边界
-        L.tileLayer("http://t{s}.tianditu.cn/ibo_w/wmts?service=wmts&request=GetTile&version=1.0.0&LAYER=ibo&tileMatrixSet=w&TileMatrix={z}&TileRow={y}&TileCol={x}&style=default&format=tiles", {
-            subdomains: ["0", "1", "2", "3", "4", "5", "6", "7"]
-        }).addTo(map);
-
-        // 使用用户自己的图标
-        var greenIcon = L.icon({
-            iconUrl: 'leaf-green.png',
-            shadowUrl: 'leaf-shadow.png',
-
-            iconSize:     [38, 95], // size of the icon
-            shadowSize:   [50, 64], // size of the shadow
-            iconAnchor:   [22, 94], // point of the icon which will correspond to marker's location
-            shadowAnchor: [4, 62],  // the same for the shadow
-            popupAnchor:  [-3, -76] // point from which the popup should open relative to the iconAnchor
-        });
-        L.marker([40, 112], {icon: greenIcon}).addTo(map);
-
-        var LeafIcon = L.Icon.extend({
-        options: {
-            shadowUrl: 'leaf-shadow.png',
-            iconSize:     [38, 95],
-            shadowSize:   [50, 64],
-            iconAnchor:   [22, 94],
-            shadowAnchor: [4, 62],
-            popupAnchor:  [-3, -76]
+            d3.queue()
+                .defer(d3.csv, "15Ernaehrungsgewerbe_KonzernPreis2.csv")
+                .await(function (error, data) {
+                    for (var i = 0; i < data.length; i++) {
+                        AddMarker(map, data[i]);
+                    }
+                });
         }
-        });
-        var greenIcon = new LeafIcon({iconUrl: 'leaf-green.png'}),
-        redIcon = new LeafIcon({iconUrl: 'leaf-red.png'}),
-        orangeIcon = new LeafIcon({iconUrl: 'leaf-orange.png'});
+        //添加监听函数加载地图
+        google.maps.event.addDomListener(window, 'load', initialize);
 
-        L.icon = function (options) {
-        return new L.Icon(options);
-        };
+        function DegreeConvertBack(value) {
+            var arr = value.split("°");
+            var du = arr[0] * 1;
+            if (arr.length < 2) {
+                return Math.abs(du);
+            }
 
-        L.marker([41.5, 99.09], {icon: greenIcon}).addTo(map).bindPopup("I am a green leaf.");
-        L.marker([41.495, 100.083], {icon: redIcon}).addTo(map).bindPopup("I am a red leaf.");
-        L.marker([41.49, 101.1], {icon: orangeIcon}).addTo(map).bindPopup("I am an orange leaf.");
+            arr = arr[1].split("´");
+            var fen = arr[0] * 1;
+            if (arr.length < 2) {
+                return Math.abs(du) + "." + (Math.abs(fen) / 60);
+            }
 
-    });
+            var miao = arr[1] * 1;
+            return Math.abs(du) + (Math.abs(fen) / 60 + Math.abs(miao) / 3600);
+        }
+
+        // 添加Marker
+        function AddMarker(map, dataItem) {
+            var p = dataItem.GeoXY.split(" ");
+            if (dataItem.GeoXY === "" || p.length !== 2) {
+                return;
+            }
+            var lat = DegreeConvertBack(p[0]);
+            var lng = DegreeConvertBack(p[1]);
+
+            var marker = new google.maps.Marker({
+                position: new google.maps.LatLng(lat, lng),
+                //icon: imgstatusURl,//自定义Marker点
+                map: map
+            });
+
+            map.panTo(new google.maps.LatLng(lat, lng));
+
+            //创建窗体信息
+            var html = [];
+            html.push("<div style='min-width:80px;min-height:40px;'>");
+            html.push("<div><h3>" + dataItem.Firma1 + "</h3></div>");
+            html.push("<div><span style='font-weight:bold'>" + dataItem.Leistungspreis + "</span>");
+            html.push("</div>")
+            html.push("</div>");
+
+
+            var infowindow = new google.maps.InfoWindow({
+                content: html.join(''),
+                disableAutoPan: true //设置为true时可禁用自动平移功能，可通过PanTo方法来平移到指定位置,如果设置为false,可不使用panTo（）方法
+            });
+
+            google.maps.event.addListener(marker, "mouseover", function () {
+                infowindow.open(map, marker);
+            });
+
+            google.maps.event.addListener(marker, "mouseout", function () {
+                infowindow.close();
+            });
+
+            //监听X关闭按钮事件
+            google.maps.event.addListener(infowindow, "closeclick", function () {
+                infowindow.close();
+            });
+        }
     </script>
 </body>
 </html>
